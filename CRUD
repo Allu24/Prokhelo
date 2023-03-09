@@ -1,0 +1,68 @@
+from flask import Flask, jsonify, request
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+db = SQLAlchemy(app)
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password = db.Column(db.String(120), nullable=False)
+    name = db.Column(db.String(120))
+    age = db.Column(db.Integer)
+    city = db.Column(db.String(120))
+
+    def __repr__(self):
+        return '<User %r>' % self.email
+
+@app.route('/login', methods=['POST'])
+def login():
+    email = request.json['email']
+    password = request.json['password']
+    user = User.query.filter_by(email=email).first()
+    if user and check_password_hash(user.password, password):
+        return jsonify({'message': 'Logged in successfully!'})
+    else:
+        return jsonify({'message': 'Invalid credentials!'})
+
+@app.route('/users', methods=['POST'])
+def create_user():
+    email = request.json['email']
+    password = generate_password_hash(request.json['password'])
+    name = request.json['name']
+    age = request.json['age']
+    city = request.json['city']
+    new_user = User(email=email, password=password, name=name, age=age, city=city)
+    db.session.add(new_user)
+    db.session.commit()
+    return jsonify({'message': 'User created successfully!'})
+
+@app.route('/users/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'message': 'User not found!'})
+    user.name = request.json.get('name', user.name)
+    user.age = request.json.get('age', user.age)
+    user.city = request.json.get('city', user.city)
+    db.session.commit()
+    return jsonify({'message': 'User updated successfully!'})
+
+@app.route('/users', methods=['GET'])
+def get_users():
+    users = User.query.all()
+    result = []
+    for user in users:
+        user_data = {}
+        user_data['id'] = user.id
+        user_data['email'] = user.email
+        user_data['name'] = user.name
+        user_data['age'] = user.age
+        user_data['city'] = user.city
+        result.append(user_data)
+    return jsonify(result)
+
+if __name__ == '__main__':
+    app.run(debug=True)
